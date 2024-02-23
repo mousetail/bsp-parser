@@ -57,7 +57,7 @@ pub fn save_mesh<'a, 'b>(
 ) -> result::Result<(), SaveMeshError> {
     let images: Vec<Vec<u8>> = meshes
         .iter()
-        .map(|mesh|->Result<Vec<u8>, ImageError> {
+        .map(|mesh| -> Result<Vec<u8>, ImageError> {
             let mut image_bytes: Vec<u8> = Vec::new();
             mesh.texture.write_to(
                 &mut Cursor::new(&mut image_bytes),
@@ -65,7 +65,7 @@ pub fn save_mesh<'a, 'b>(
             )?;
             Ok(image_bytes)
         })
-        .collect::<Result::<Vec::<_>,_>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     let buffer_offsets: Vec<usize> = (0..meshes.len())
         .map(|k| {
@@ -234,10 +234,12 @@ pub fn save_mesh<'a, 'b>(
     file.write_all(&2_u32.to_le_bytes())?;
     file.write_all(
         &((
-            pad_length(total_buffer_length
+            pad_length(data.len() +
+            total_buffer_length
                 ) +
                     16 + // Chunk headers
-                    12 // Top header
+                    12
+            // Top header
         ) as u32)
             .to_le_bytes(),
     )?;
@@ -246,12 +248,7 @@ pub fn save_mesh<'a, 'b>(
     file.write_all("JSON".as_bytes())?;
     file.write(data.as_bytes())?;
 
-    file.write_all(
-        &(pad_length(
-            total_buffer_length
-        ) as u32)
-            .to_le_bytes(),
-    )?;
+    file.write_all(&(pad_length(total_buffer_length) as u32).to_le_bytes())?;
     file.write_all("BIN".as_bytes())?;
     file.write(&[0])?;
 

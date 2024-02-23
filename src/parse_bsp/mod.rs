@@ -154,12 +154,12 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
     gltf_export::save_mesh(
         "out.gltf".to_string(),
         &[gltf_export::GltfObject {
-        vertexes: &glft_verticies,
-        normals: &gltf_normals,
-        uvs: &gltf_uvs,
-        indices: &gltf_indicies,
-        texture: image::open("cache\\texture.png").unwrap(),
-        }]
+            vertexes: &glft_verticies,
+            normals: &gltf_normals,
+            uvs: &gltf_uvs,
+            indices: &gltf_indicies,
+            texture: image::open("cache\\texture.png").unwrap(),
+        }],
     )
     .unwrap();
 
