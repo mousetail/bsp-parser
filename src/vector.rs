@@ -72,6 +72,10 @@ impl Vec3 {
     pub fn reflect(&self, axis: Axis) -> Vec3 {
         self.set_axis(axis, -self.get_axis(axis))
     }
+
+    pub fn to_y_up(self) -> Vec3 {
+        Vec3 { x: self.x, y: self.z, z: -self.y }
+    }
 }
 
 impl Add for Vec3 {

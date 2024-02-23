@@ -151,7 +151,7 @@ fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec
         }
     };
 
-    for (index, face) in bsp_faces.iter().enumerate() {
+    for (_index, face) in bsp_faces.iter().enumerate() {
         let face_edges:Vec<_> = bsp_surfedges[face.first_edge as usize..(face.first_edge+face.num_edges as u32) as usize].iter().map(get_edge).collect();
         let normal = bsp_planes[face.planenum as usize].normal;
         let initial_index = verticies.len();
@@ -172,13 +172,9 @@ fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec
             continue;
         }
 
-        if texture_name=="CONCRETE/CONCRETEFLOOR007B" {
-            println!("{:#?}", texture_info.texture_vectors);
-        }
-
         let mut push_vertex = |vertex: Vertex| {
-            verticies.push(vertex.0 * 0.1);
-            normals.push(normal);
+            verticies.push(vertex.0.to_y_up() * 0.1);
+            normals.push(normal.to_y_up());
             uvs.push(texture_info.get_uv(vertex.0, texture_data));
         };
         push_vertex(bsp_vertexes[face_edges[0].first as usize]);
