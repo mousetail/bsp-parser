@@ -1,6 +1,6 @@
 use crate::vector::{Vec2, Vec3};
 use image::{DynamicImage, ImageError};
-use json::{array, object, JsonError};
+use json::{array, object, JsonError, JsonValue};
 use std::fs::File;
 use std::io::{Cursor, Seek, SeekFrom, Write};
 use std::{fs, result};
@@ -34,30 +34,51 @@ pub enum SaveMeshError {
     ImageError(#[from] ImageError),
 }
 
-pub fn save_mesh(
-    filename: String,
-    vertexes: &Vec<Vec3>,
-    normals: &Vec<Vec3>,
-    uvs: &Vec<Vec2>,
-    indices: &Vec<usize>,
-    texture: DynamicImage,
-) -> result::Result<(), SaveMeshError> {
-    let min_vertex = [
-        float_min(vertexes.iter().map(|i| i.x)),
-        float_min(vertexes.iter().map(|i| i.y)),
-        float_min(vertexes.iter().map(|i| i.z)),
-    ];
-    let max_vertex = [
-        float_max(vertexes.iter().map(|i| i.x)),
-        float_max(vertexes.iter().map(|i| i.y)),
-        float_max(vertexes.iter().map(|i| i.z)),
-    ];
+pub struct GltfObject<'a> {
+    pub vertexes: &'a [Vec3],
+    pub normals: &'a [Vec3],
+    pub uvs: &'a [Vec2],
+    pub indices: &'a [usize],
+    pub texture: DynamicImage,
+}
 
-    let mut image_bytes: Vec<u8> = Vec::new();
-    texture.write_to(
-        &mut Cursor::new(&mut image_bytes),
-        image::ImageOutputFormat::Png,
-    )?;
+impl<'a> GltfObject<'a> {
+    fn byte_length_excluding_texture(&self) -> usize {
+        return self.vertexes.len() * 4 * 3
+            + self.normals.len() * 4 * 3
+            + self.uvs.len() * 4 * 2
+            + self.indices.len() * 4;
+    }
+}
+
+pub fn save_mesh<'a, 'b>(
+    filename: String,
+    meshes: &'a [GltfObject<'b>],
+) -> result::Result<(), SaveMeshError> {
+    let images: Vec<Vec<u8>> = meshes
+        .iter()
+        .map(|mesh|->Result<Vec<u8>, ImageError> {
+            let mut image_bytes: Vec<u8> = Vec::new();
+            mesh.texture.write_to(
+                &mut Cursor::new(&mut image_bytes),
+                image::ImageOutputFormat::Png,
+            )?;
+            Ok(image_bytes)
+        })
+        .collect::<Result::<Vec::<_>,_>>()?;
+
+    let buffer_offsets: Vec<usize> = (0..meshes.len())
+        .map(|k| {
+            (0..k)
+                .map(|l| meshes[l].byte_length_excluding_texture() + images[l].len())
+                .sum::<usize>()
+        })
+        .collect();
+    let total_buffer_length = meshes
+        .iter()
+        .map(|i| i.byte_length_excluding_texture())
+        .sum::<usize>()
+        + images.iter().map(|i| i.len()).sum::<usize>();
 
     let gltf_json_part = object! {
         "asset"=> object!{
@@ -121,66 +142,80 @@ pub fn save_mesh(
                 "minFilter"=>9728
             }
         ],
-        "accessors"=>array![
+        "accessors"=>JsonValue::Array(
+            meshes.iter().enumerate().flat_map(|(index, mesh)|{
+
+            let min_vertex = [
+                float_min(mesh.vertexes.iter().map(|i| i.x)),
+                float_min(mesh.vertexes.iter().map(|i| i.y)),
+                float_min(mesh.vertexes.iter().map(|i| i.z)),
+            ];
+            let max_vertex = [
+                float_max(mesh.vertexes.iter().map(|i| i.x)),
+                float_max(mesh.vertexes.iter().map(|i| i.y)),
+                float_max(mesh.vertexes.iter().map(|i| i.z)),
+            ];
+
+            return    [
             object!{
-                "bufferView"=>0,
+                "bufferView"=>0 + index * 4,
                 "componentType"=> 5126_u32, // Float
-                "count"=> normals.len(),
+                "count"=> mesh.normals.len(),
                 "type"=> "VEC3"
             },
             object!{
-                "bufferView"=>1,
+                "bufferView"=>1 + index * 4,
                 "componentType"=> 5126_u32, // Float
-                "count"=> vertexes.len(),
+                "count"=> mesh.vertexes.len(),
                 "type"=> "VEC3",
                 "min"=>array![min_vertex[0], min_vertex[1], min_vertex[2]],
                 "max"=>array![max_vertex[0], max_vertex[1], max_vertex[2]],
             },
             object!{
-                "bufferView"=>2,
+                "bufferView"=>2 + index * 4,
                 "componentType"=> 5126_u32, // Float
-                "count"=> uvs.len(),
+                "count"=> mesh.uvs.len(),
                 "type"=> "VEC2"
             },
             object!{
-                "bufferView"=>3,
+                "bufferView"=>3 + index * 4,
                 "componentType"=> 5125_u32, // Unsigned Int
-                "count"=> indices.len(),
+                "count"=> mesh.indices.len(),
                 "type"=> "SCALAR"
-            }
-        ],
-        "bufferViews"=> array![
+            }]}).collect()
+        ),
+        "bufferViews"=> JsonValue::Array(meshes.iter().enumerate().flat_map(|(index, mesh)| [
             object!{
                 "buffer"=>0,
-                "byteLength"=>4 *3 * normals.len(),
-                "byteOffset"=>0,
+                "byteLength"=>4 *3 * mesh.normals.len(),
+                "byteOffset"=> buffer_offsets[index],
             },
             object!{
                 "buffer"=>0,
-                "byteOffset"=>4 * 3 * normals.len(),
-                "byteLength"=>4 * 3 * vertexes.len(),
+                "byteOffset"=>4 * 3 * mesh.normals.len(),
+                "byteLength"=>buffer_offsets[index] + 4 * 3 * mesh.vertexes.len(),
             },
 
             object!{
                 "buffer"=>0,
-                "byteOffset"=>4 * 3 * normals.len() + 4 * 3 * vertexes.len(),
-                "byteLength"=>4 * 2 * uvs.len(),
+                "byteOffset"=>4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len(),
+                "byteLength"=>buffer_offsets[index] +4 * 2 * mesh.uvs.len(),
             },
             object!{
                 "buffer"=>0,
-                "byteOffset"=>4 * 3 * normals.len() + 4 * 3 * vertexes.len() + 4 * 2 * uvs.len(),
-                "byteLength"=>4 * indices.len(),
+                "byteOffset"=>4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len() + 4 * 2 * mesh.uvs.len(),
+                "byteLength"=>buffer_offsets[index] +4 * mesh.indices.len(),
             },
             // Texture
             object!{
                 "buffer"=>0,
-                "byteLength"=>image_bytes.len(),
-                "byteOffset"=>4 * 3 * normals.len() + 4 * 3 * vertexes.len() + 4 * 2 * uvs.len() + 4 * indices.len()
+                "byteLength"=>images[index].len(),
+                "byteOffset"=>buffer_offsets[index] +4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len() + 4 * 2 * mesh.uvs.len() + 4 * mesh.indices.len()
             }
-        ],
+        ]).collect()),
         "buffers"=>array![
             object!{
-                "byteLength"=>4 * 3 * normals.len() + 4 * 3 * vertexes.len() + 4 * 2 * uvs.len() + 4 * indices.len() + image_bytes.len()
+                "byteLength"=>total_buffer_length
             },
         ]
     };
@@ -191,48 +226,18 @@ pub fn save_mesh(
 
     let mut data = json::stringify(gltf_json_part);
     while data.len() % 4 != 0 {
-        data += " "
+        data += " ";
     }
-
-    let buffer_normals: Vec<u8> = normals
-        .iter()
-        .map(|x| [x.x.to_le_bytes(), x.y.to_le_bytes(), x.z.to_le_bytes()])
-        .flatten()
-        .flatten()
-        .collect();
-    let buffer_positions: Vec<u8> = vertexes
-        .iter()
-        .map(|x| [x.x.to_le_bytes(), x.y.to_le_bytes(), x.z.to_le_bytes()])
-        .flatten()
-        .flatten()
-        .collect();
-    let buffer_uvs: Vec<u8> = uvs
-        .iter()
-        .map(|x| [x.x.to_le_bytes(), x.y.to_le_bytes()])
-        .flatten()
-        .flatten()
-        .collect();
-    let buffer_indices: Vec<u8> = indices
-        .iter()
-        .map(|x| (*x as u32).to_le_bytes())
-        .flatten()
-        .collect();
 
     let mut file = File::create(format!("cache/{:}.glb", filename)).unwrap();
     file.write_all("glTF".as_bytes())?;
     file.write_all(&2_u32.to_le_bytes())?;
     file.write_all(
         &((
-            pad_length(data.len() +
-                    buffer_normals.len() +
-                    buffer_positions.len() +
-                    buffer_uvs.len() +
-                    buffer_indices.len() +
-                    image_bytes.len()
+            pad_length(total_buffer_length
                 ) +
                     16 + // Chunk headers
-                    12
-            // Top header
+                    12 // Top header
         ) as u32)
             .to_le_bytes(),
     )?;
@@ -243,28 +248,55 @@ pub fn save_mesh(
 
     file.write_all(
         &(pad_length(
-            buffer_positions.len()
-                + buffer_normals.len()
-                + buffer_uvs.len()
-                + buffer_indices.len()
-                + image_bytes.len(),
+            total_buffer_length
         ) as u32)
             .to_le_bytes(),
     )?;
     file.write_all("BIN".as_bytes())?;
     file.write(&[0])?;
-    file.write_all(buffer_normals.as_slice())?;
-    file.write_all(buffer_positions.as_slice())?;
-    file.write_all(buffer_uvs.as_slice())?;
-    file.write_all(buffer_indices.as_slice())?;
-    file.write_all(image_bytes.as_slice())?;
 
-    let cursor_position = file.seek(SeekFrom::Current(0))?;
-    for _i in 0..((4 - cursor_position % 4) % 4) {
-        file.write(&[0])?;
+    for (mesh, image) in meshes.iter().zip(images.iter()) {
+        let buffer_normals: Vec<u8> = mesh
+            .normals
+            .iter()
+            .map(|x| [x.x.to_le_bytes(), x.y.to_le_bytes(), x.z.to_le_bytes()])
+            .flatten()
+            .flatten()
+            .collect();
+        let buffer_positions: Vec<u8> = mesh
+            .vertexes
+            .iter()
+            .map(|x| [x.x.to_le_bytes(), x.y.to_le_bytes(), x.z.to_le_bytes()])
+            .flatten()
+            .flatten()
+            .collect();
+        let buffer_uvs: Vec<u8> = mesh
+            .uvs
+            .iter()
+            .map(|x| [x.x.to_le_bytes(), x.y.to_le_bytes()])
+            .flatten()
+            .flatten()
+            .collect();
+        let buffer_indices: Vec<u8> = mesh
+            .indices
+            .iter()
+            .map(|x| (*x as u32).to_le_bytes())
+            .flatten()
+            .collect();
+
+        file.write_all(buffer_normals.as_slice())?;
+        file.write_all(buffer_positions.as_slice())?;
+        file.write_all(buffer_uvs.as_slice())?;
+        file.write_all(buffer_indices.as_slice())?;
+        file.write_all(image.as_slice())?;
+
+        let cursor_position = file.seek(SeekFrom::Current(0))?;
+        for _i in 0..((4 - cursor_position % 4) % 4) {
+            file.write(&[0])?;
+        }
+
+        //let mut img_file = File::create(format!("cache/{}.png", filename))?;
+        //img_file.write_all(image_bytes.as_slice())?;
     }
-
-    let mut img_file = File::create(format!("cache/{}.png", filename))?;
-    img_file.write_all(image_bytes.as_slice())?;
     return result::Result::Ok(());
 }
