@@ -1,6 +1,6 @@
 use std::{fs::File, io::{Read, Seek}};
 
-use crate::{parse_bsp::parse_vector, vector::Vec3};
+use crate::{parse_bsp::parse_vector3, vector::Vec3};
 
 use super::Lump;
 
@@ -22,7 +22,7 @@ pub(super) fn parse_plane(file: &mut File, lump: Lump) -> std::io::Result<Vec<Pl
         file.read_exact(&mut bytes)?;
 
         out.push(Plane {
-            normal: parse_vector(bytes[0..12].try_into().unwrap()),
+            normal: parse_vector3(bytes[0..12].try_into().unwrap()),
             distance: f32::from_le_bytes(bytes[12..16].try_into().unwrap()),
             axis: u32::from_le_bytes(bytes[16..20].try_into().unwrap())
         })

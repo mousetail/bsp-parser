@@ -18,7 +18,7 @@ pub(super) fn parse_vertices(file: &mut File, lump: Lump) -> std::io::Result<Vec
         let mut bytes = [0u8; 12];
         file.read_exact(&mut bytes)?;
 
-        out.push(Vertex(super::parse_vector(bytes)));
+        out.push(Vertex(super::parse_vector3(bytes)));
     }
 
     Ok(out)

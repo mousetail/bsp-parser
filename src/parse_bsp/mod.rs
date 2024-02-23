@@ -2,6 +2,7 @@ mod face;
 mod plane;
 mod vertex;
 mod edge;
+mod texinfo;
 
 use crate::{comma_format::CommaFormat, gltf_export, vector::{Vec2, Vec3}};
 use std::{
@@ -9,7 +10,7 @@ use std::{
     io::*,
 };
 
-use self::{edge::Edge, face::Face, plane::Plane, surfedges::SurfEdge, vertex::Vertex};
+use self::{edge::Edge, face::Face, plane::Plane, surfedges::SurfEdge, texinfo::{surface_flags::{self, SURF_SKIP}, TextureInfo}, vertex::Vertex};
 mod surfedges;
 
 #[allow(unused)]
@@ -106,8 +107,9 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
     println!("Number of edges: {:}", CommaFormat(edges.len()));
     let surfedges = surfedges::parse_surf_edges(&mut file, lumps[lump_names::LUMP_SURFEDGES])?;
     println!("Number of surfedges: {:}", CommaFormat(surfedges.len()));
+    let texture_info = texinfo::parse_texture_info(&mut file, lumps[lump_names::LUMP_TEXINFO])?;
 
-    let (glft_verticies, gltf_normals, gltf_uvs, gltf_indicies) = to_primitives(faces, planes, verticies, edges, surfedges);
+    let (glft_verticies, gltf_normals, gltf_uvs, gltf_indicies) = to_primitives(faces, planes, verticies, edges, surfedges, texture_info);
 
     gltf_export::save_mesh(
         "out.gltf".to_string(),
@@ -121,7 +123,7 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
     return Ok(());
 }
 
-fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec<Vertex>, bsp_edges: Vec<Edge>, bsp_surfedges: Vec<SurfEdge>) -> (Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<usize>) {
+fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec<Vertex>, bsp_edges: Vec<Edge>, bsp_surfedges: Vec<SurfEdge>, texture_infos: Vec<TextureInfo>) -> (Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<usize>) {
     let mut verticies = Vec::<Vec3>::new();
     let mut normals = Vec::<Vec3>::new();
     let mut uvs = Vec::<Vec2>::new();
@@ -137,27 +139,29 @@ fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec
 
     for (_index, face) in bsp_faces.iter().enumerate() {
         let face_edges:Vec<_> = bsp_surfedges[face.first_edge as usize..(face.first_edge+face.num_edges as u32) as usize].iter().map(get_edge).collect();
-
         let normal = bsp_planes[face.planenum as usize].normal * - 1.0;
-
-        
         let initial_index = verticies.len();
-        verticies.push(bsp_vertexes[face_edges[0].first as usize].0);
-        normals.push(normal);
-        uvs.push(Vec2{x: 0.5, y: 0.5});
+        let texture_info = texture_infos[face.tex_info as usize];
+
+        if texture_info.flags & surface_flags::SURF_NODRAW > 0 || texture_info.flags & surface_flags::SURF_SKIP > 0 || texture_info.flags & surface_flags::SURF_SKY > 0 || texture_info.flags & surface_flags::SURF_HINT > 0 {
+            continue;
+        }
+
+        let mut push_vertex = |vertex: Vertex| {
+            verticies.push(vertex.0 * 0.1);
+            normals.push(normal);
+            uvs.push(texture_info.get_uv(vertex.0));
+        };
+        push_vertex(bsp_vertexes[face_edges[0].first as usize]);
 
 
-        for edge in &face_edges[1..] {
+        for (index, edge) in face_edges[1..].iter().enumerate() {
             indicies.push(initial_index);
-            indicies.push(verticies.len());
-            indicies.push(verticies.len()+1);
+            indicies.push(initial_index+2+2*index);
+            indicies.push(initial_index+1+2*index);
 
-            verticies.push(bsp_vertexes[edge.first as usize].0);
-            normals.push(normal);
-            uvs.push(Vec2{x: 0.8, y: 0.5});
-            verticies.push(bsp_vertexes[edge.second as usize].0);
-            normals.push(normal);
-            uvs.push(Vec2{x: 0.5, y: 0.8});
+            push_vertex(bsp_vertexes[edge.first as usize]);
+            push_vertex(bsp_vertexes[edge.second as usize]);
         }
     }
 
@@ -211,10 +215,17 @@ struct Lump {
     id: [u8; 4],
 }
 
-fn parse_vector(bytes: [u8; 12]) -> Vec3 {
+fn parse_vector3(bytes: [u8; 12]) -> Vec3 {
     return Vec3 {
         x: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
         y: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
         z: f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+    }
+}
+
+fn parse_vector2(bytes: [u8; 8]) -> Vec2 {
+    return Vec2 {
+        x: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+        y: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
     }
 }
