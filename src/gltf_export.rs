@@ -40,6 +40,7 @@ pub struct GltfObject<'a> {
     pub uvs: &'a [Vec2],
     pub indices: &'a [usize],
     pub texture: DynamicImage,
+    pub name: &'a str
 }
 
 impl<'a> GltfObject<'a> {
@@ -70,7 +71,7 @@ pub fn save_mesh<'a, 'b>(
     let buffer_offsets: Vec<usize> = (0..meshes.len())
         .map(|k| {
             (0..k)
-                .map(|l| meshes[l].byte_length_excluding_texture() + images[l].len())
+                .map(|l| meshes[l].byte_length_excluding_texture() + pad_length(images[l].len()))
                 .sum::<usize>()
         })
         .collect();
@@ -78,7 +79,7 @@ pub fn save_mesh<'a, 'b>(
         .iter()
         .map(|i| i.byte_length_excluding_texture())
         .sum::<usize>()
-        + images.iter().map(|i| i.len()).sum::<usize>();
+        + images.iter().map(|i| pad_length(i.len())).sum::<usize>();
 
     let gltf_json_part = object! {
         "asset"=> object!{
@@ -89,53 +90,65 @@ pub fn save_mesh<'a, 'b>(
         "scenes"=>array![
             object!{
                 "name"=> "Scene0",
-                "nodes" => array![0]
+                "nodes" => JsonValue::Array(
+                    (0..meshes.len()).map(|i|JsonValue::Number(i.into())).collect::<Vec<_>>()
+                )
             }
         ],
-        "nodes"=>array![
-            object!{
-                "mesh"=>0,
-                "name"=>"curve"
-            }
-        ],
-        "meshes"=> array![
-            object!{
-                "primitives"=> array![
-                    object!{
-                        "attributes"=>object!{
-                            "NORMAL"=> 0,
-                            "POSITION"=>1,
-                            "TEXCOORD_0"=>2
-                        },
-                        "indices"=>3,
-                        "material"=>0
-                    }
-                ],
-            }
-        ],
-        "textures"=>array![
-            object!{
-                "source"=>0,
-                "sampler"=>0
-            }
-        ],
-        "images"=>array![
-            object!{
-                "bufferView"=>4,
-                "mimeType"=>"image/png",
-                "name"=>"texture0"
-            }
-        ],
-        "materials"=>array![
-            object!{
-                "pbrMetallicRoughness" => object!{
-                    "baseColorTexture" => object!{
-                        "index" => 0,
-                        "texCoord" => 0
+        "nodes"=>JsonValue::Array(
+            meshes.iter().enumerate().map(|(index, mesh)|{
+                object!{
+                    "mesh"=>index,
+                    "name"=>mesh.name
+                }
+            }).collect()
+        ),
+        "meshes"=> JsonValue::Array(
+            meshes.iter().enumerate().map(|(index, _mesh)|{
+                object! {
+                    "primitives" => array![
+                        object!{
+                            "attributes"=>object!{
+                                "NORMAL"=> index * 4,
+                                "POSITION"=>index * 4 + 1,
+                                "TEXCOORD_0"=>index * 4 + 2
+                            },
+                            "indices"=>index * 4 + 3,
+                            "material"=>index
+                        }
+                    ]
+                }
+            }).collect()
+        ),
+        "textures"=>JsonValue::Array(
+            meshes.iter().enumerate().map(|(index, _mesh)|
+                object! {
+                    "source"=>index,
+                    "sampler"=>0
+                }
+            ).collect()
+        ),
+        "images"=>JsonValue::Array(
+            meshes.iter().enumerate().map(|(index, _mesh)|
+                object! {
+                    "bufferView"=>4 + 5 * index,
+                    "mimeType"=>"image/png",
+                    "name"=>format!("texture{index}")
+                }
+            ).collect()
+        ),
+        "materials"=>JsonValue::Array(
+            meshes.iter().enumerate().map(|(index, _mesh)|
+                object! {
+                    "pbrMetallicRoughness" => object!{
+                        "baseColorTexture" => object!{
+                            "index" => index,
+                            "texCoord" => 0
+                        }
                     }
                 }
-            }
-        ],
+            ).collect()
+        ),
         "samplers"=>array![
             object!{
                 "magFilter"=>9728,
@@ -156,61 +169,62 @@ pub fn save_mesh<'a, 'b>(
                 float_max(mesh.vertexes.iter().map(|i| i.z)),
             ];
 
-            return    [
-            object!{
-                "bufferView"=>0 + index * 4,
-                "componentType"=> 5126_u32, // Float
-                "count"=> mesh.normals.len(),
-                "type"=> "VEC3"
-            },
-            object!{
-                "bufferView"=>1 + index * 4,
-                "componentType"=> 5126_u32, // Float
-                "count"=> mesh.vertexes.len(),
-                "type"=> "VEC3",
-                "min"=>array![min_vertex[0], min_vertex[1], min_vertex[2]],
-                "max"=>array![max_vertex[0], max_vertex[1], max_vertex[2]],
-            },
-            object!{
-                "bufferView"=>2 + index * 4,
-                "componentType"=> 5126_u32, // Float
-                "count"=> mesh.uvs.len(),
-                "type"=> "VEC2"
-            },
-            object!{
-                "bufferView"=>3 + index * 4,
-                "componentType"=> 5125_u32, // Unsigned Int
-                "count"=> mesh.indices.len(),
-                "type"=> "SCALAR"
-            }]}).collect()
+            return [
+                object!{
+                    "bufferView"=>0 + index * 5,
+                    "componentType"=> 5126_u32, // Float
+                    "count"=> mesh.normals.len(),
+                    "type"=> "VEC3"
+                },
+                object!{
+                    "bufferView"=>1 + index * 5,
+                    "componentType"=> 5126_u32, // Float
+                    "count"=> mesh.vertexes.len(),
+                    "type"=> "VEC3",
+                    "min"=>array![min_vertex[0], min_vertex[1], min_vertex[2]],
+                    "max"=>array![max_vertex[0], max_vertex[1], max_vertex[2]],
+                },
+                object!{
+                    "bufferView"=>2 + index * 5,
+                    "componentType"=> 5126_u32, // Float
+                    "count"=> mesh.uvs.len(),
+                    "type"=> "VEC2"
+                },
+                object!{
+                    "bufferView"=>3 + index * 5,
+                    "componentType"=> 5125_u32, // Unsigned Int
+                    "count"=> mesh.indices.len(),
+                    "type"=> "SCALAR"
+                }
+            ]}).collect()
         ),
         "bufferViews"=> JsonValue::Array(meshes.iter().enumerate().flat_map(|(index, mesh)| [
             object!{
                 "buffer"=>0,
+                "byteOffset"=>buffer_offsets[index],
                 "byteLength"=>4 *3 * mesh.normals.len(),
-                "byteOffset"=> buffer_offsets[index],
             },
             object!{
                 "buffer"=>0,
-                "byteOffset"=>4 * 3 * mesh.normals.len(),
-                "byteLength"=>buffer_offsets[index] + 4 * 3 * mesh.vertexes.len(),
+                "byteOffset"=>buffer_offsets[index] + 4 * 3 * mesh.normals.len(),
+                "byteLength"=>4 * 3 * mesh.vertexes.len(),
             },
 
             object!{
                 "buffer"=>0,
-                "byteOffset"=>4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len(),
-                "byteLength"=>buffer_offsets[index] +4 * 2 * mesh.uvs.len(),
+                "byteOffset"=>buffer_offsets[index] + 4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len(),
+                "byteLength"=>4 * 2 * mesh.uvs.len(),
             },
             object!{
                 "buffer"=>0,
-                "byteOffset"=>4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len() + 4 * 2 * mesh.uvs.len(),
-                "byteLength"=>buffer_offsets[index] +4 * mesh.indices.len(),
+                "byteOffset"=>buffer_offsets[index] +4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len() + 4 * 2 * mesh.uvs.len(),
+                "byteLength"=>4 * mesh.indices.len(),
             },
             // Texture
             object!{
                 "buffer"=>0,
+                "byteOffset"=>buffer_offsets[index] +4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len() + 4 * 2 * mesh.uvs.len() + 4 * mesh.indices.len(),
                 "byteLength"=>images[index].len(),
-                "byteOffset"=>buffer_offsets[index] +4 * 3 * mesh.normals.len() + 4 * 3 * mesh.vertexes.len() + 4 * 2 * mesh.uvs.len() + 4 * mesh.indices.len()
             }
         ]).collect()),
         "buffers"=>array![

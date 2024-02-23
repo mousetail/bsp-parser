@@ -12,8 +12,7 @@ use crate::{
     vector::{Vec2, Vec3},
 };
 use std::{
-    fs::{File, OpenOptions},
-    io::*,
+    collections::{HashMap, HashSet}, fs::{File, OpenOptions}, io::*
 };
 
 use self::{
@@ -139,7 +138,7 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
         lumps[lump_names::LUMP_TEXDATA_STRING_TABLE],
     )?;
 
-    let (glft_verticies, gltf_normals, gltf_uvs, gltf_indicies) = to_primitives(
+    let primitive_groups = to_primitives(
         faces,
         planes,
         verticies,
@@ -151,19 +150,31 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
         texture_string_table,
     );
 
+    for key in primitive_groups.keys() {
+        println!("{key}")
+    }
+
     gltf_export::save_mesh(
         "out.gltf".to_string(),
-        &[gltf_export::GltfObject {
-            vertexes: &glft_verticies,
-            normals: &gltf_normals,
-            uvs: &gltf_uvs,
-            indices: &gltf_indicies,
-            texture: image::open("cache\\texture.png").unwrap(),
-        }],
+        primitive_groups.iter().map(|(name, primitive)|gltf_export::GltfObject {
+            vertexes: &primitive.verticies,
+            normals: &primitive.normals,
+            uvs: &primitive.uvs,
+            indices: &primitive.indices,
+            texture: image::open(format!("cache\\textures\\{name}.png")).expect(&format!("{name}")),
+            name
+        }).collect::<Vec<_>>().as_slice(),
     )
     .unwrap();
 
     return Ok(());
+}
+
+struct MaterialGroup {
+    verticies: Vec<Vec3>,
+    normals: Vec<Vec3>,
+    uvs: Vec<Vec2>,
+    indices: Vec<usize>
 }
 
 fn to_primitives(
@@ -176,11 +187,9 @@ fn to_primitives(
     bsp_texture_data: Vec<TextureData>,
     bsp_texture_string_array: TextureDataStringArray,
     bsp_texture_string_table: Vec<TextureString>,
-) -> (Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<usize>) {
-    let mut verticies = Vec::<Vec3>::new();
-    let mut normals = Vec::<Vec3>::new();
-    let mut uvs = Vec::<Vec2>::new();
-    let mut indicies = Vec::<usize>::new();
+) -> HashMap<String, MaterialGroup> {
+    let mut groups: HashMap<String, MaterialGroup> = HashMap::new();
+    let mut maps_texture_names = HashSet::new();
 
     let get_edge = |surface_edge: &SurfEdge| -> Edge {
         if surface_edge.0 > 0 {
@@ -197,7 +206,6 @@ fn to_primitives(
             .map(get_edge)
             .collect();
         let normal = bsp_planes[face.planenum as usize].normal;
-        let initial_index = verticies.len();
 
         if face.displacement_info != -1 {
             continue;
@@ -221,24 +229,44 @@ fn to_primitives(
             continue;
         }
 
-        let mut push_vertex = |vertex: Vertex| {
-            verticies.push(vertex.0.to_y_up() * 0.1);
-            normals.push(normal.to_y_up());
-            uvs.push(texture_info.get_uv(vertex.0, texture_data));
+        let category = match texture_name.split_once('/').unwrap_or(("","")) {
+            ("maps", k) => k.split('/').nth(1).unwrap().to_ascii_uppercase(),
+            (a, _) => a.to_ascii_uppercase()
         };
+        if category == "maps" && !maps_texture_names.contains(texture_name) {
+            maps_texture_names.insert(texture_name.to_string());
+            println!("{texture_name}")
+        }
+
+        let group = groups.entry(category).or_insert(MaterialGroup {
+            verticies: vec![],
+            normals: vec![],
+            uvs: vec![],
+            indices: vec![]
+        });
+
+        let initial_index = group.verticies.len();
+
+        let mut push_vertex = |vertex: Vertex| {
+            group.verticies.push(vertex.0.to_y_up() * 0.1);
+            group.normals.push(normal.to_y_up());
+            group.uvs.push(texture_info.get_uv(vertex.0, texture_data));
+        };
+        
         push_vertex(bsp_vertexes[face_edges[0].first as usize]);
+        
 
         for (index, edge) in face_edges[1..face_edges.len() - 1].iter().enumerate() {
-            indicies.push(initial_index);
-            indicies.push(initial_index + 2 + 2 * index);
-            indicies.push(initial_index + 1 + 2 * index);
+            group.indices.push(initial_index);
+            group.indices.push(initial_index + 2 + 2 * index);
+            group.indices.push(initial_index + 1 + 2 * index);
 
             push_vertex(bsp_vertexes[edge.first as usize]);
             push_vertex(bsp_vertexes[edge.second as usize]);
         }
     }
 
-    return (verticies, normals, uvs, indicies);
+    return groups;
 }
 
 fn read_header(file: &mut File) -> Result<(u32, Vec<Lump>)> {
