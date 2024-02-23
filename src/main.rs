@@ -1,9 +1,9 @@
 use parse_bsp::parse_bsp;
 
+mod comma_format;
 mod gltf_export;
 mod parse_bsp;
 mod vector;
-mod comma_format;
 
 fn main() -> std::io::Result<()> {
     //parse_bsp("D:\\steam\\steamapps\\common\\Team Fortress 2\\tf\\maps\\cp_gorge.bsp")

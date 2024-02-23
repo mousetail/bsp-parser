@@ -74,7 +74,11 @@ impl Vec3 {
     }
 
     pub fn to_y_up(self) -> Vec3 {
-        Vec3 { x: self.x, y: self.z, z: -self.y }
+        Vec3 {
+            x: self.x,
+            y: self.z,
+            z: -self.y,
+        }
     }
 }
 

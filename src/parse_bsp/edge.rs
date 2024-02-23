@@ -1,6 +1,5 @@
-
-use std::{fs::File, io::Read};
 use std::io::Seek;
+use std::{fs::File, io::Read};
 
 use super::Lump;
 
@@ -14,8 +13,8 @@ impl Edge {
     pub fn reverse(self) -> Self {
         return Edge {
             first: self.second,
-            second: self.first
-        }
+            second: self.first,
+        };
     }
 }
 
@@ -32,7 +31,7 @@ pub(super) fn parse_edges(file: &mut File, lump: Lump) -> std::io::Result<Vec<Ed
 
         out.push(Edge {
             first: u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
-            second: u16::from_le_bytes(bytes[2..4].try_into().unwrap())
+            second: u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
         });
     }
 

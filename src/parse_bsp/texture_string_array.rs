@@ -1,4 +1,7 @@
-use std::{fs::File, io::{Read, Seek}};
+use std::{
+    fs::File,
+    io::{Read, Seek},
+};
 
 use super::Lump;
 
@@ -9,13 +12,16 @@ impl TextureDataStringArray {
         let start = index;
         let mut end = index;
         while self.0[end] > 0 {
-            end+=1;
+            end += 1;
         }
-        return std::str::from_utf8(&self.0[start..end])
+        return std::str::from_utf8(&self.0[start..end]);
     }
 }
 
-pub(super) fn parse_texture_data_string_array(file: &mut File, lump: Lump) -> std::io::Result<TextureDataStringArray> {
+pub(super) fn parse_texture_data_string_array(
+    file: &mut File,
+    lump: Lump,
+) -> std::io::Result<TextureDataStringArray> {
     file.seek(std::io::SeekFrom::Start(lump.offset as u64))?;
 
     let mut out = vec![0; lump.length as usize];
@@ -26,7 +32,10 @@ pub(super) fn parse_texture_data_string_array(file: &mut File, lump: Lump) -> st
 
 pub(super) struct TextureString(pub u32);
 
-pub(super) fn parse_texture_data_string_table(file: &mut File, lump: Lump) -> std::io::Result<Vec<TextureString>> {
+pub(super) fn parse_texture_data_string_table(
+    file: &mut File,
+    lump: Lump,
+) -> std::io::Result<Vec<TextureString>> {
     file.seek(std::io::SeekFrom::Start(lump.offset as u64))?;
 
     assert!(lump.length % 4 == 0);

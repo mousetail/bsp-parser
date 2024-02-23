@@ -1,11 +1,9 @@
-use std::{fs::File, io::Read};
-use std::io::Seek;
 use super::Lump;
-
+use std::io::Seek;
+use std::{fs::File, io::Read};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub(super) struct Vertex(pub crate::vector::Vec3);
-
 
 pub(super) fn parse_vertices(file: &mut File, lump: Lump) -> std::io::Result<Vec<Vertex>> {
     file.seek(std::io::SeekFrom::Start(lump.offset as u64))?;

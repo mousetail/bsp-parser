@@ -1,8 +1,8 @@
 use std::fs::File;
-use std::{io::{Read, Seek}};
+use std::io::{Read, Seek};
 
+use crate::parse_bsp::parse_vector3;
 use crate::vector::Vec3;
-use crate::{parse_bsp::{parse_vector3}};
 
 use super::Lump;
 
@@ -13,7 +13,7 @@ pub(super) struct TextureData {
     pub width: u32,
     pub height: u32,
     pub view_width: u32,
-    pub view_height: u32
+    pub view_height: u32,
 }
 
 pub(super) fn parse_texture_data(file: &mut File, lump: Lump) -> std::io::Result<Vec<TextureData>> {

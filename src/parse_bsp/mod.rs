@@ -1,18 +1,34 @@
+mod edge;
 mod face;
 mod plane;
-mod vertex;
-mod edge;
-mod texinfo;
 mod texdata;
+mod texinfo;
 mod texture_string_array;
+mod vertex;
 
-use crate::{comma_format::CommaFormat, gltf_export, vector::{Vec2, Vec3}};
+use crate::{
+    comma_format::CommaFormat,
+    gltf_export,
+    vector::{Vec2, Vec3},
+};
 use std::{
     fs::{File, OpenOptions},
     io::*,
 };
 
-use self::{edge::Edge, face::Face, plane::Plane, surfedges::SurfEdge, texdata::TextureData, texinfo::{surface_flags::{self, SURF_SKIP}, TextureInfo}, texture_string_array::{TextureDataStringArray, TextureString}, vertex::Vertex};
+use self::{
+    edge::Edge,
+    face::Face,
+    plane::Plane,
+    surfedges::SurfEdge,
+    texdata::TextureData,
+    texinfo::{
+        surface_flags::{self},
+        TextureInfo,
+    },
+    texture_string_array::{TextureDataStringArray, TextureString},
+    vertex::Vertex,
+};
 mod surfedges;
 
 #[allow(unused)]
@@ -95,7 +111,10 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
     for (index, lump) in lumps.iter().enumerate() {
         println!(
             "{index:>4} {:?} {:<14} {:<14} {:<8}",
-            lump.id, CommaFormat(lump.offset as usize), CommaFormat(lump.length as usize), lump.version
+            lump.id,
+            CommaFormat(lump.offset as usize),
+            CommaFormat(lump.length as usize),
+            lump.version
         )
     }
 
@@ -111,11 +130,22 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
     println!("Number of surfedges: {:}", CommaFormat(surfedges.len()));
     let texture_info = texinfo::parse_texture_info(&mut file, lumps[lump_names::LUMP_TEXINFO])?;
     let texture_data = texdata::parse_texture_data(&mut file, lumps[lump_names::LUMP_TEXDATA])?;
-    let texture_string_array = texture_string_array::parse_texture_data_string_array(&mut file, lumps[lump_names::LUMP_TEXDATA_STRING_DATA])?;
-    let texture_string_table = texture_string_array::parse_texture_data_string_table(&mut file, lumps[lump_names::LUMP_TEXDATA_STRING_TABLE])?;
+    let texture_string_array = texture_string_array::parse_texture_data_string_array(
+        &mut file,
+        lumps[lump_names::LUMP_TEXDATA_STRING_DATA],
+    )?;
+    let texture_string_table = texture_string_array::parse_texture_data_string_table(
+        &mut file,
+        lumps[lump_names::LUMP_TEXDATA_STRING_TABLE],
+    )?;
 
     let (glft_verticies, gltf_normals, gltf_uvs, gltf_indicies) = to_primitives(
-        faces, planes, verticies, edges, surfedges, texture_info,
+        faces,
+        planes,
+        verticies,
+        edges,
+        surfedges,
+        texture_info,
         texture_data,
         texture_string_array,
         texture_string_table,
@@ -127,16 +157,23 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
         &gltf_normals,
         &gltf_uvs,
         &gltf_indicies,
-        image::open("cache\\texture.png").unwrap()
-    ).unwrap();
+        image::open("cache\\texture.png").unwrap(),
+    )
+    .unwrap();
 
     return Ok(());
 }
 
-fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec<Vertex>, bsp_edges: Vec<Edge>, bsp_surfedges: Vec<SurfEdge>, texture_infos: Vec<TextureInfo>,
+fn to_primitives(
+    bsp_faces: Vec<Face>,
+    bsp_planes: Vec<Plane>,
+    bsp_vertexes: Vec<Vertex>,
+    bsp_edges: Vec<Edge>,
+    bsp_surfedges: Vec<SurfEdge>,
+    texture_infos: Vec<TextureInfo>,
     bsp_texture_data: Vec<TextureData>,
     bsp_texture_string_array: TextureDataStringArray,
-    bsp_texture_string_table: Vec<TextureString>
+    bsp_texture_string_table: Vec<TextureString>,
 ) -> (Vec<Vec3>, Vec<Vec3>, Vec<Vec2>, Vec<usize>) {
     let mut verticies = Vec::<Vec3>::new();
     let mut normals = Vec::<Vec3>::new();
@@ -145,14 +182,18 @@ fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec
 
     let get_edge = |surface_edge: &SurfEdge| -> Edge {
         if surface_edge.0 > 0 {
-            return bsp_edges[surface_edge.0 as usize]
+            return bsp_edges[surface_edge.0 as usize];
         } else {
-            return bsp_edges[-surface_edge.0 as usize].reverse()
+            return bsp_edges[-surface_edge.0 as usize].reverse();
         }
     };
 
     for (_index, face) in bsp_faces.iter().enumerate() {
-        let face_edges:Vec<_> = bsp_surfedges[face.first_edge as usize..(face.first_edge+face.num_edges as u32) as usize].iter().map(get_edge).collect();
+        let face_edges: Vec<_> = bsp_surfedges
+            [face.first_edge as usize..(face.first_edge + face.num_edges as u32) as usize]
+            .iter()
+            .map(get_edge)
+            .collect();
         let normal = bsp_planes[face.planenum as usize].normal;
         let initial_index = verticies.len();
 
@@ -162,12 +203,18 @@ fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec
 
         let texture_info = texture_infos[face.tex_info as usize];
 
-        if texture_info.flags & surface_flags::SURF_NODRAW > 0 || texture_info.flags & surface_flags::SURF_SKIP > 0 || texture_info.flags & surface_flags::SURF_SKY > 0 || texture_info.flags & surface_flags::SURF_HINT > 0 {
+        if texture_info.flags & surface_flags::SURF_NODRAW > 0
+            || texture_info.flags & surface_flags::SURF_SKIP > 0
+            || texture_info.flags & surface_flags::SURF_SKY > 0
+            || texture_info.flags & surface_flags::SURF_HINT > 0
+        {
             continue;
         }
 
         let texture_data = bsp_texture_data[texture_info.texture_data_index as usize];
-        let texture_name = bsp_texture_string_array.get_str(bsp_texture_string_table[texture_data.name_index as usize].0 as usize).unwrap();
+        let texture_name = bsp_texture_string_array
+            .get_str(bsp_texture_string_table[texture_data.name_index as usize].0 as usize)
+            .unwrap();
         if texture_name.starts_with("TOOL") {
             continue;
         }
@@ -179,11 +226,10 @@ fn to_primitives(bsp_faces: Vec<Face>, bsp_planes: Vec<Plane>, bsp_vertexes: Vec
         };
         push_vertex(bsp_vertexes[face_edges[0].first as usize]);
 
-
-        for (index, edge) in face_edges[1..face_edges.len()-1].iter().enumerate() {
+        for (index, edge) in face_edges[1..face_edges.len() - 1].iter().enumerate() {
             indicies.push(initial_index);
-            indicies.push(initial_index+2+2*index);
-            indicies.push(initial_index+1+2*index);
+            indicies.push(initial_index + 2 + 2 * index);
+            indicies.push(initial_index + 1 + 2 * index);
 
             push_vertex(bsp_vertexes[edge.first as usize]);
             push_vertex(bsp_vertexes[edge.second as usize]);
@@ -245,12 +291,12 @@ fn parse_vector3(bytes: [u8; 12]) -> Vec3 {
         x: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
         y: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
         z: f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
-    }
+    };
 }
 
 fn parse_vector2(bytes: [u8; 8]) -> Vec2 {
     return Vec2 {
         x: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
         y: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
-    }
+    };
 }

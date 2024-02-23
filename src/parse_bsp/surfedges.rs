@@ -1,11 +1,10 @@
-
-use std::{fs::File, io::Read};
 use std::io::Seek;
+use std::{fs::File, io::Read};
 
 use super::Lump;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub(super) struct SurfEdge (pub i32);
+pub(super) struct SurfEdge(pub i32);
 
 pub(super) fn parse_surf_edges(file: &mut File, lump: Lump) -> std::io::Result<Vec<SurfEdge>> {
     file.seek(std::io::SeekFrom::Start(lump.offset as u64))?;
