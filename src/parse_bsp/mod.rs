@@ -20,18 +20,17 @@ use std::{
 };
 
 use self::{
+    brush_model::BrushModel,
     edge::Edge,
     face::Face,
     plane::Plane,
     surfedges::SurfEdge,
     texdata::TextureData,
-    texinfo::{
-        surface_flags::{self},
-        TextureInfo,
-    },
+    texinfo::{surface_flags, TextureInfo},
     texture_string_array::{TextureDataStringArray, TextureString},
     vertex::Vertex,
 };
+mod brush_model;
 mod surfedges;
 
 #[allow(unused)]
@@ -141,6 +140,11 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
         &mut file,
         lumps[lump_names::LUMP_TEXDATA_STRING_TABLE],
     )?;
+    println!(
+        "String data table size: {:}",
+        CommaFormat(texture_string_table.len())
+    );
+    let brush_models = brush_model::parse_bush_model(&mut file, lumps[lump_names::LUMP_MODELS])?;
 
     let primitive_groups = to_primitives(
         faces,
@@ -152,6 +156,7 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
         texture_data,
         texture_string_array,
         texture_string_table,
+        brush_models,
     );
 
     for key in primitive_groups.keys() {
@@ -196,6 +201,7 @@ fn to_primitives(
     bsp_texture_data: Vec<TextureData>,
     bsp_texture_string_array: TextureDataStringArray,
     bsp_texture_string_table: Vec<TextureString>,
+    bsp_models: Vec<BrushModel>,
 ) -> HashMap<String, MaterialGroup> {
     let mut groups: HashMap<String, MaterialGroup> = HashMap::new();
     let mut maps_texture_names = HashSet::new();
@@ -208,7 +214,11 @@ fn to_primitives(
         }
     };
 
-    for (_index, face) in bsp_faces.iter().enumerate() {
+    for (_index, face) in bsp_faces[bsp_models[0].first_face as usize
+        ..bsp_models[0].first_face as usize + bsp_models[0].num_faces as usize]
+        .iter()
+        .enumerate()
+    {
         let face_edges: Vec<_> = bsp_surfedges
             [face.first_edge as usize..(face.first_edge + face.num_edges as u32) as usize]
             .iter()
