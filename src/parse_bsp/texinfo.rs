@@ -4,6 +4,7 @@ use std::io::{Read, Seek};
 use crate::vector::Vec2;
 use crate::vector::Vec3;
 
+use super::parse_split_lump::parse_split_chunks;
 use super::texdata::TextureData;
 use super::Lump;
 
@@ -15,42 +16,32 @@ pub(super) struct TextureInfo {
     pub texture_data_index: u32,
 }
 
-pub(super) fn parse_texture_info(file: &mut File, lump: Lump) -> std::io::Result<Vec<TextureInfo>> {
-    file.seek(std::io::SeekFrom::Start(lump.offset as u64))?;
-
-    assert!(lump.length % 72 == 0);
-
-    let mut out = Vec::with_capacity((lump.length / 72) as usize);
-
-    for _ in 0..lump.length / 72 {
-        let mut bytes = [0u8; 72];
-        file.read_exact(&mut bytes)?;
-
-        out.push(TextureInfo {
-            texture_vectors: (0..4usize)
-                .map(|i| Vec2 {
-                    x: f32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap()),
-                    y: f32::from_le_bytes(bytes[i * 4 + 16..i * 4 + 20].try_into().unwrap()),
-                })
-                .collect::<Vec<_>>()
-                .as_slice()
-                .try_into()
-                .unwrap(),
-            lightmap_vectors: (0..4usize)
-                .map(|i| Vec2 {
-                    x: f32::from_le_bytes(bytes[i * 4 + 32..i * 4 + 36].try_into().unwrap()),
-                    y: f32::from_le_bytes(bytes[i * 4 + 48..i * 4 + 52].try_into().unwrap()),
-                })
-                .collect::<Vec<_>>()
-                .as_slice()
-                .try_into()
-                .unwrap(),
-            flags: u32::from_le_bytes(bytes[64..68].try_into().unwrap()),
-            texture_data_index: u32::from_le_bytes(bytes[68..72].try_into().unwrap()),
-        });
-    }
-
-    Ok(out)
+pub(super) fn parse_texture_info<T: Read + Seek>(
+    file: &mut T,
+    lump: Lump,
+) -> std::io::Result<Vec<TextureInfo>> {
+    parse_split_chunks(file, lump, |bytes: [u8; 72]| TextureInfo {
+        texture_vectors: (0..4usize)
+            .map(|i| Vec2 {
+                x: f32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap()),
+                y: f32::from_le_bytes(bytes[i * 4 + 16..i * 4 + 20].try_into().unwrap()),
+            })
+            .collect::<Vec<_>>()
+            .as_slice()
+            .try_into()
+            .unwrap(),
+        lightmap_vectors: (0..4usize)
+            .map(|i| Vec2 {
+                x: f32::from_le_bytes(bytes[i * 4 + 32..i * 4 + 36].try_into().unwrap()),
+                y: f32::from_le_bytes(bytes[i * 4 + 48..i * 4 + 52].try_into().unwrap()),
+            })
+            .collect::<Vec<_>>()
+            .as_slice()
+            .try_into()
+            .unwrap(),
+        flags: u32::from_le_bytes(bytes[64..68].try_into().unwrap()),
+        texture_data_index: u32::from_le_bytes(bytes[68..72].try_into().unwrap()),
+    })
 }
 
 impl TextureInfo {

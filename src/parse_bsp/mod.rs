@@ -1,10 +1,12 @@
 mod edge;
 mod face;
+mod parse_split_lump;
 mod plane;
 mod texdata;
 mod texinfo;
 mod texture_string_array;
 mod vertex;
+mod vis_node_leaf;
 
 use crate::{
     comma_format::CommaFormat,
@@ -12,7 +14,9 @@ use crate::{
     vector::{Vec2, Vec3},
 };
 use std::{
-    collections::{HashMap, HashSet}, fs::{File, OpenOptions}, io::*
+    collections::{HashMap, HashSet},
+    fs::{File, OpenOptions},
+    io::*,
 };
 
 use self::{
@@ -119,7 +123,7 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
 
     let faces = face::parse_faces(&mut file, lumps[lump_names::LUMP_FACES])?;
     println!("Number of faces: {:}", CommaFormat(faces.len()));
-    let planes = plane::parse_plane(&mut file, lumps[lump_names::LUMP_PLANES])?;
+    let planes = plane::parse_planes(&mut file, lumps[lump_names::LUMP_PLANES])?;
     println!("Number of planes: {:}", CommaFormat(planes.len()));
     let verticies = vertex::parse_vertices(&mut file, lumps[lump_names::LUMP_VERTEXES])?;
     println!("Number of verticies: {:}", CommaFormat(verticies.len()));
@@ -156,14 +160,19 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
 
     gltf_export::save_mesh(
         "out.gltf".to_string(),
-        primitive_groups.iter().map(|(name, primitive)|gltf_export::GltfObject {
-            vertexes: &primitive.verticies,
-            normals: &primitive.normals,
-            uvs: &primitive.uvs,
-            indices: &primitive.indices,
-            texture: image::open(format!("cache\\textures\\{name}.png")).expect(&format!("{name}")),
-            name
-        }).collect::<Vec<_>>().as_slice(),
+        primitive_groups
+            .iter()
+            .map(|(name, primitive)| gltf_export::GltfObject {
+                vertexes: &primitive.verticies,
+                normals: &primitive.normals,
+                uvs: &primitive.uvs,
+                indices: &primitive.indices,
+                texture: image::open(format!("cache\\textures\\{name}.png"))
+                    .expect(&format!("{name}")),
+                name,
+            })
+            .collect::<Vec<_>>()
+            .as_slice(),
     )
     .unwrap();
 
@@ -174,7 +183,7 @@ struct MaterialGroup {
     verticies: Vec<Vec3>,
     normals: Vec<Vec3>,
     uvs: Vec<Vec2>,
-    indices: Vec<usize>
+    indices: Vec<usize>,
 }
 
 fn to_primitives(
@@ -229,9 +238,9 @@ fn to_primitives(
             continue;
         }
 
-        let category = match texture_name.split_once('/').unwrap_or(("","")) {
+        let category = match texture_name.split_once('/').unwrap_or(("", "")) {
             ("maps", k) => k.split('/').nth(1).unwrap().to_ascii_uppercase(),
-            (a, _) => a.to_ascii_uppercase()
+            (a, _) => a.to_ascii_uppercase(),
         };
         if category == "maps" && !maps_texture_names.contains(texture_name) {
             maps_texture_names.insert(texture_name.to_string());
@@ -242,7 +251,7 @@ fn to_primitives(
             verticies: vec![],
             normals: vec![],
             uvs: vec![],
-            indices: vec![]
+            indices: vec![],
         });
 
         let initial_index = group.verticies.len();
@@ -252,9 +261,8 @@ fn to_primitives(
             group.normals.push(normal.to_y_up());
             group.uvs.push(texture_info.get_uv(vertex.0, texture_data));
         };
-        
+
         push_vertex(bsp_vertexes[face_edges[0].first as usize]);
-        
 
         for (index, edge) in face_edges[1..face_edges.len() - 1].iter().enumerate() {
             group.indices.push(initial_index);
