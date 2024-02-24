@@ -32,8 +32,6 @@ pub(super) fn decompress_stream<FileType: Read + Seek>(
 
         let properties: [u8; 5] = header_bytes[12..17].try_into().unwrap();
 
-        println!("original_size={actual_size} compressed_size={compressed_size}");
-
         let mut standard_header: [u8; 13] = [0; 13];
         let mut standard_writer: &mut [u8] = &mut standard_header;
         standard_writer.write_all(&properties)?;

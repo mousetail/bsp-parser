@@ -1,4 +1,5 @@
 mod bsp_to_primitives;
+mod displacement;
 mod edge;
 mod face;
 mod parse_split_lump;
@@ -17,6 +18,19 @@ use crate::{
 use std::{
     fs::{File, OpenOptions},
     io::*,
+};
+
+use self::{
+    brush_model::BrushModel,
+    displacement::DisplacementInfo,
+    edge::Edge,
+    face::Face,
+    plane::Plane,
+    surfedges::SurfEdge,
+    texdata::TextureData,
+    texinfo::TextureInfo,
+    texture_string_array::{TextureDataStringArray, TextureString},
+    vertex::Vertex,
 };
 
 mod brush_model;
@@ -92,6 +106,20 @@ mod lump_names {
 
 const HEADER_LUMPS: usize = 64;
 
+struct ParsedBspFile {
+    faces: Vec<Face>,
+    planes: Vec<Plane>,
+    vertexes: Vec<Vertex>,
+    edges: Vec<Edge>,
+    surface_edges: Vec<SurfEdge>,
+    texture_infos: Vec<TextureInfo>,
+    texture_data: Vec<TextureData>,
+    texture_string_array: TextureDataStringArray,
+    texture_string_table: Vec<TextureString>,
+    displacement_info: Vec<DisplacementInfo>,
+    brush_models: Vec<BrushModel>,
+}
+
 pub fn parse_bsp(filename: &str) -> Result<()> {
     let mut file = OpenOptions::new().read(true).open(filename)?;
 
@@ -109,44 +137,48 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
         )
     }
 
-    let faces = face::parse_faces(&mut file, lumps[lump_names::LUMP_FACES])?;
-    println!("Number of faces: {:}", CommaFormat(faces.len()));
-    let planes = plane::parse_planes(&mut file, lumps[lump_names::LUMP_PLANES])?;
-    println!("Number of planes: {:}", CommaFormat(planes.len()));
-    let verticies = vertex::parse_vertices(&mut file, lumps[lump_names::LUMP_VERTEXES])?;
-    println!("Number of verticies: {:}", CommaFormat(verticies.len()));
-    let edges = edge::parse_edges(&mut file, lumps[lump_names::LUMP_EDGES])?;
-    println!("Number of edges: {:}", CommaFormat(edges.len()));
-    let surfedges = surfedges::parse_surf_edges(&mut file, lumps[lump_names::LUMP_SURFEDGES])?;
-    println!("Number of surfedges: {:}", CommaFormat(surfedges.len()));
-    let texture_info = texinfo::parse_texture_info(&mut file, lumps[lump_names::LUMP_TEXINFO])?;
-    let texture_data = texdata::parse_texture_data(&mut file, lumps[lump_names::LUMP_TEXDATA])?;
-    let texture_string_array = texture_string_array::parse_texture_data_string_array(
-        &mut file,
-        lumps[lump_names::LUMP_TEXDATA_STRING_DATA],
-    )?;
-    let texture_string_table = texture_string_array::parse_texture_data_string_table(
-        &mut file,
-        lumps[lump_names::LUMP_TEXDATA_STRING_TABLE],
-    )?;
+    let parsed_file = ParsedBspFile {
+        faces: face::parse_faces(&mut file, lumps[lump_names::LUMP_FACES])?,
+        planes: plane::parse_planes(&mut file, lumps[lump_names::LUMP_PLANES])?,
+        vertexes: vertex::parse_vertices(&mut file, lumps[lump_names::LUMP_VERTEXES])?,
+        edges: edge::parse_edges(&mut file, lumps[lump_names::LUMP_EDGES])?,
+        surface_edges: surfedges::parse_surf_edges(&mut file, lumps[lump_names::LUMP_SURFEDGES])?,
+        texture_infos: texinfo::parse_texture_info(&mut file, lumps[lump_names::LUMP_TEXINFO])?,
+        texture_data: texdata::parse_texture_data(&mut file, lumps[lump_names::LUMP_TEXDATA])?,
+        texture_string_array: texture_string_array::parse_texture_data_string_array(
+            &mut file,
+            lumps[lump_names::LUMP_TEXDATA_STRING_DATA],
+        )?,
+        texture_string_table: texture_string_array::parse_texture_data_string_table(
+            &mut file,
+            lumps[lump_names::LUMP_TEXDATA_STRING_TABLE],
+        )?,
+        displacement_info: displacement::parse_displacements(
+            &mut file,
+            lumps[lump_names::LUMP_DISPINFO],
+        )?,
+        brush_models: brush_model::parse_bush_model(&mut file, lumps[lump_names::LUMP_MODELS])?,
+    };
+    println!("Number of faces: {:}", CommaFormat(parsed_file.faces.len()));
+    println!(
+        "Number of planes: {:}",
+        CommaFormat(parsed_file.planes.len())
+    );
+    println!(
+        "Number of vertexes: {:}",
+        CommaFormat(parsed_file.vertexes.len())
+    );
+    println!("Number of edges: {:}", CommaFormat(parsed_file.edges.len()));
+    println!(
+        "Number of surfedges: {:}",
+        CommaFormat(parsed_file.surface_edges.len())
+    );
     println!(
         "String data table size: {:}",
-        CommaFormat(texture_string_table.len())
+        CommaFormat(parsed_file.texture_string_table.len())
     );
-    let brush_models = brush_model::parse_bush_model(&mut file, lumps[lump_names::LUMP_MODELS])?;
 
-    let primitive_groups = bsp_to_primitives::to_primitives(
-        faces,
-        planes,
-        verticies,
-        edges,
-        surfedges,
-        texture_info,
-        texture_data,
-        texture_string_array,
-        texture_string_table,
-        brush_models,
-    );
+    let primitive_groups = bsp_to_primitives::to_primitives(parsed_file);
 
     for key in primitive_groups.keys() {
         println!("{key}")
