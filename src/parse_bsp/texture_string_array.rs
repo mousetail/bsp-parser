@@ -3,7 +3,10 @@ use std::{
     io::{Read, Seek},
 };
 
-use super::{parse_split_lump::parse_split_chunks, Lump};
+use super::{
+    parse_split_lump::{decompress_stream, parse_split_chunks},
+    Lump,
+};
 
 pub(super) struct TextureDataStringArray(Vec<u8>);
 
@@ -22,10 +25,12 @@ pub(super) fn parse_texture_data_string_array(
     file: &mut File,
     lump: Lump,
 ) -> std::io::Result<TextureDataStringArray> {
-    file.seek(std::io::SeekFrom::Start(lump.offset as u64))?;
+    println!("About to parse string data");
+    let (mut stream, length) = decompress_stream(file, lump)?;
+    println!("Parsed string data");
 
-    let mut out = vec![0; lump.length as usize];
-    file.read_exact(out.as_mut_slice())?;
+    let mut out = vec![0; length as usize];
+    stream.read_exact(out.as_mut_slice())?;
 
     return Ok(TextureDataStringArray(out));
 }

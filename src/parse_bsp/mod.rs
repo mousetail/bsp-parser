@@ -113,7 +113,7 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
 
     for (index, lump) in lumps.iter().enumerate() {
         println!(
-            "{index:>4} {:?} {:<14} {:<14} {:<8}",
+            "{index:>4} id={:03?} offset={:<14} length={:<14} version={:<8}",
             lump.id,
             CommaFormat(lump.offset as usize),
             CommaFormat(lump.length as usize),
@@ -230,6 +230,12 @@ struct Lump {
     length: u32,
     version: u32,
     id: [u8; 4],
+}
+
+impl Lump {
+    fn is_compressed(self) -> bool {
+        return self.id != [0; 4];
+    }
 }
 
 fn parse_vector3(bytes: [u8; 12]) -> Vec3 {
