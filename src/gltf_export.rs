@@ -40,7 +40,7 @@ pub struct GltfObject<'a> {
     pub uvs: &'a [Vec2],
     pub indices: &'a [usize],
     pub texture: DynamicImage,
-    pub name: &'a str
+    pub name: &'a str,
 }
 
 impl<'a> GltfObject<'a> {

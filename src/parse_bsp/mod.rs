@@ -15,22 +15,10 @@ use crate::{
     vector::{Vec2, Vec3},
 };
 use std::{
-    collections::{HashMap, HashSet},
     fs::{File, OpenOptions},
     io::*,
 };
 
-use self::{
-    brush_model::BrushModel,
-    edge::Edge,
-    face::Face,
-    plane::Plane,
-    surfedges::SurfEdge,
-    texdata::TextureData,
-    texinfo::{surface_flags, TextureInfo},
-    texture_string_array::{TextureDataStringArray, TextureString},
-    vertex::Vertex,
-};
 mod brush_model;
 mod surfedges;
 

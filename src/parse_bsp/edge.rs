@@ -1,5 +1,5 @@
+use std::io::Read;
 use std::io::Seek;
-use std::{fs::File, io::Read};
 
 use super::parse_split_lump::parse_split_chunks;
 use super::Lump;

@@ -1,6 +1,4 @@
-use std::{
-    io::{Read, Seek},
-};
+use std::io::{Read, Seek};
 
 use crate::{parse_bsp::parse_vector3, vector::Vec3};
 

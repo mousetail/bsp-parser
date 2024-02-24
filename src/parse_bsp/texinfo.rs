@@ -1,4 +1,3 @@
-
 use std::io::{Read, Seek};
 
 use crate::vector::Vec2;
