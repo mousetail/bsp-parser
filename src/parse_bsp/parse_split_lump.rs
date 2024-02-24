@@ -12,7 +12,7 @@ pub(super) fn parse_split_chunks<
     lump: Lump,
     mut f: Function,
 ) -> std::io::Result<Vec<T>> {
-    file.seek(std::io::SeekFrom::Start(lump.offset as u64));
+    file.seek(std::io::SeekFrom::Start(lump.offset as u64))?;
 
     assert!(lump.length % (LENGTH as u32) == 0);
 
