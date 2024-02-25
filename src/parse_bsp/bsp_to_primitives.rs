@@ -125,7 +125,7 @@ fn handle_normal_face(
 fn handle_displacement_face(
     group: &mut MaterialGroup,
     bsp: &ParsedBspFile,
-    face: Face,
+    _face: Face,
     normal: Vec3,
     texture_info: TextureInfo,
     texture_data: TextureData,
@@ -145,14 +145,14 @@ fn handle_displacement_face(
     starting_corner = (2 + starting_corner) % 4;
     corners.rotate_left(starting_corner);
 
-    let faces_per_side = (2 << (power - 1));
+    let faces_per_side = 2 << (power - 1);
 
     let lerp = |first, second, value| (first * value) + (second * (1.0 - value));
     let interpolate = |x, y| {
         lerp(
-            lerp(corners[0], corners[1], (x as f32 / faces_per_side as f32)),
-            lerp(corners[3], corners[2], (x as f32 / faces_per_side as f32)),
-            (y as f32 / faces_per_side as f32),
+            lerp(corners[0], corners[1], x as f32 / faces_per_side as f32),
+            lerp(corners[3], corners[2], x as f32 / faces_per_side as f32),
+            y as f32 / faces_per_side as f32,
         )
     };
 
@@ -181,7 +181,7 @@ fn handle_displacement_face(
 
     for x in 0..faces_per_side {
         for y in 0..faces_per_side {
-            let mut indicies = [
+            let indicies = [
                 initial_index + x + y * (faces_per_side + 1),
                 initial_index + x + 1 + y * (faces_per_side + 1),
                 initial_index + x + (y + 1) * (faces_per_side + 1),
