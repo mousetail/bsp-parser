@@ -4,18 +4,19 @@ use crate::vector::Vec3;
 
 use super::{parse_split_lump::parse_split_chunks, parse_vector3, Lump};
 
+#[derive(Copy, Clone, Debug)]
 pub(super) struct DisplacementInfo {
-    start_position: Vec3,
-    vertex_start: u32,
-    triangle_start: u32,
-    power: u32,
-    minimum_tesselation: u32,
-    smoothing_angle: f32,
-    contents: u32,
-    face: u16,
-    lightmap_alpha_start: u32,
-    lightmap_sample_start: u32,
-    rest: [u8; 130],
+    pub start_position: Vec3,
+    pub vertex_start: u32,
+    pub triangle_start: u32,
+    pub power: u32,
+    pub minimum_tesselation: u32,
+    pub smoothing_angle: f32,
+    pub contents: u32,
+    pub face: u16,
+    pub lightmap_alpha_start: u32,
+    pub lightmap_sample_start: u32,
+    // rest: [u8; 130],
 }
 
 pub(super) fn parse_displacements<T: Read + Seek>(
@@ -33,6 +34,24 @@ pub(super) fn parse_displacements<T: Read + Seek>(
         face: u16::from_le_bytes(bytes[36..38].try_into().unwrap()),
         lightmap_alpha_start: u32::from_le_bytes(bytes[38..42].try_into().unwrap()),
         lightmap_sample_start: u32::from_le_bytes(bytes[42..46].try_into().unwrap()),
-        rest: bytes[46..176].try_into().unwrap(),
+        // rest: bytes[46..176].try_into().unwrap(),
+    })
+}
+
+#[derive(Copy, Clone)]
+pub(super) struct DisplacementVertex {
+    pub direction: Vec3,
+    pub length: f32,
+    pub alpha: f32,
+}
+
+pub(super) fn parse_displacement_vertexes<T: Read + Seek>(
+    file: &mut T,
+    lump: Lump,
+) -> std::io::Result<Vec<DisplacementVertex>> {
+    parse_split_chunks(file, lump, |bytes: [u8; 20]| DisplacementVertex {
+        direction: parse_vector3(bytes[0..12].try_into().unwrap()),
+        length: f32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        alpha: f32::from_le_bytes(bytes[16..20].try_into().unwrap()),
     })
 }

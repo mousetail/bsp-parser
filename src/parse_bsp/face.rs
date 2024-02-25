@@ -29,7 +29,7 @@ pub(super) fn parse_faces<T: Read + Seek>(file: &mut T, lump: Lump) -> std::io::
     })
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Face {
     pub planenum: u16,
     pub side: bool,

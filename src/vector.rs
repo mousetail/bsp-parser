@@ -80,6 +80,14 @@ impl Vec3 {
             z: -self.y,
         }
     }
+
+    pub fn elementwise_min(self, other: Vec3) -> Vec3 {
+        Vec3 {
+            x: self.x.min(other.x),
+            y: self.x.min(other.y),
+            z: self.x.min(other.z),
+        }
+    }
 }
 
 impl Add for Vec3 {

@@ -22,7 +22,7 @@ use std::{
 
 use self::{
     brush_model::BrushModel,
-    displacement::DisplacementInfo,
+    displacement::{DisplacementInfo, DisplacementVertex},
     edge::Edge,
     face::Face,
     plane::Plane,
@@ -117,6 +117,7 @@ struct ParsedBspFile {
     texture_string_array: TextureDataStringArray,
     texture_string_table: Vec<TextureString>,
     displacement_info: Vec<DisplacementInfo>,
+    displacement_vertexes: Vec<DisplacementVertex>,
     brush_models: Vec<BrushModel>,
 }
 
@@ -156,6 +157,10 @@ pub fn parse_bsp(filename: &str) -> Result<()> {
         displacement_info: displacement::parse_displacements(
             &mut file,
             lumps[lump_names::LUMP_DISPINFO],
+        )?,
+        displacement_vertexes: displacement::parse_displacement_vertexes(
+            &mut file,
+            lumps[lump_names::LUMP_DISP_VERTS],
         )?,
         brush_models: brush_model::parse_bush_model(&mut file, lumps[lump_names::LUMP_MODELS])?,
     };
