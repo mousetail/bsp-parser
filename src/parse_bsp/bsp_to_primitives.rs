@@ -172,22 +172,61 @@ fn handle_displacement_face(
             group
                 .verticies
                 .push((raw_position + vertex.direction * vertex.length).to_y_up() * 0.1);
-            group.normals.push(normal.to_y_up());
             group
                 .uvs
                 .push(texture_info.get_uv(raw_position, texture_data));
         }
     }
 
+    let get_vertex_index = |x: usize, y: usize| initial_index + x + y * (faces_per_side + 1);
+
+    for x in 0..=faces_per_side as isize {
+        for y in 0..=faces_per_side as isize {
+            let corners = [[x + 1, y], [x, y + 1], [x - 1, y], [x, y - 1]]
+                .iter()
+                .enumerate()
+                .filter(|(index, k)| k.iter().all(|m| *m >= 0 && *m <= faces_per_side as isize))
+                .map(|(index, t)| {
+                    (
+                        index,
+                        group.verticies[get_vertex_index(t[0] as usize, t[1] as usize)],
+                    )
+                })
+                .map(|(index, t)| {
+                    (
+                        index,
+                        group.verticies[get_vertex_index(x as usize, y as usize)] - t,
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            assert!(corners.len() >= 2);
+            let out = (0..corners.len())
+                .filter(|&i| (corners[i].0 + 1) % 4 == corners[(i + 1) % corners.len()].0)
+                .map(|i| corners[i].1.cross(corners[(i + 1) % corners.len()].1))
+                .fold(
+                    Vec3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    |a, b| a + b,
+                )
+                .normalize();
+
+            group.normals.push(out);
+        }
+    }
+
     for x in 0..faces_per_side {
         for y in 0..faces_per_side {
             let indicies = [
-                initial_index + x + y * (faces_per_side + 1),
-                initial_index + x + 1 + y * (faces_per_side + 1),
-                initial_index + x + (y + 1) * (faces_per_side + 1),
-                initial_index + x + (y + 1) * (faces_per_side + 1),
-                initial_index + x + y * (faces_per_side + 1) + 1,
-                initial_index + x + (y + 1) * (faces_per_side + 1) + 1,
+                get_vertex_index(x, y),
+                get_vertex_index(x + 1, y),
+                get_vertex_index(x, y + 1),
+                get_vertex_index(x, y + 1),
+                get_vertex_index(x + 1, y),
+                get_vertex_index(x + 1, y + 1),
             ];
 
             // if face.side {
